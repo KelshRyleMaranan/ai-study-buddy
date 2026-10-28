@@ -1,6 +1,7 @@
 require("dotenv").config(); // loads the secret key from .env
 const express = require("express");
 const path = require("path");
+const rateLimit = require("express-rate-limit");
 const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
@@ -17,6 +18,7 @@ const MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 
 const MAX_HISTORY = 20; // only remember the last 20 messages to save quota
 const MAX_MESSAGE_LENGTH = 4000;
+const DAILY_LIMIT = Number(process.env.DAILY_LIMIT) || 200; // total chats per day for the whole app
 
 // Who the buddy is. This is sent with every request.
 const BASE_PROMPT =
@@ -43,6 +45,35 @@ const MODE_PROMPTS = {
     "Give a one-sentence overview, then 3 to 6 bullet points of the key ideas, " +
     "then a short list of key terms. Do not add facts that are not in the text.",
 };
+
+// Hosting services put a proxy in front of the app.
+// This makes the rate limiter see each visitor's real IP address.
+app.set("trust proxy", 1);
+
+// Limit 1: each visitor can send 10 messages per minute
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "You're sending messages too fast. Wait a minute and try again." },
+});
+
+// Limit 2: a daily cap for the whole app, to protect the free quota.
+// It lives in memory, so it also resets when the server restarts.
+let dailyCount = 0;
+let dailyDay = new Date().toDateString();
+
+function useDailyAllowance() {
+  const today = new Date().toDateString();
+  if (today !== dailyDay) {
+    dailyDay = today;
+    dailyCount = 0;
+  }
+  if (dailyCount >= DAILY_LIMIT) return false;
+  dailyCount++;
+  return true;
+}
 
 // Lets the server read JSON sent from the browser
 app.use(express.json());
@@ -103,7 +134,7 @@ async function getAIReply(message, history, mode) {
 }
 
 // The chat route: the browser sends a message, the server sends back a reply
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", chatLimiter, async (req, res) => {
   const { message, history, mode } = req.body;
 
   // Check the message before using it
@@ -114,6 +145,13 @@ app.post("/api/chat", async (req, res) => {
     return res
       .status(400)
       .json({ error: `Message is too long (max ${MAX_MESSAGE_LENGTH} characters).` });
+  }
+
+  // Stop if the whole app used up its daily allowance
+  if (!useDailyAllowance()) {
+    return res
+      .status(429)
+      .json({ error: "AI Study Buddy has reached its daily limit. Please come back tomorrow!" });
   }
 
   try {
@@ -127,7 +165,12 @@ app.post("/api/chat", async (req, res) => {
     console.error("Gemini error:", error.message);
 
     if (error.status === 429) {
-      return res.status(429).json({ error: "Too many requests right now. Wait a moment and try again." });
+      return res
+        .status(429)
+        .json({ error: "The AI is getting too many requests right now. Wait a moment and try again." });
+    }
+    if (error.status === 503) {
+      return res.status(503).json({ error: "The AI is busy right now. Try again in a few seconds." });
     }
     res.status(500).json({ error: "Something went wrong talking to the AI." });
   }

@@ -1,6 +1,7 @@
 const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chat-form");
 const inputEl = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-btn");
 const modesEl = document.getElementById("modes");
 
 // The conversation so far. Each item looks like { role: "user" or "model", text: "..." }
@@ -14,6 +15,7 @@ const MODES = {
   summarize: "Paste the text you want summarized...",
 };
 let currentMode = "tutor";
+let isLoading = false; // true while we wait for the buddy's answer
 
 // Turns the AI's Markdown into safe HTML.
 // If the libraries failed to load (for example, no internet), show plain text instead.
@@ -46,6 +48,33 @@ function addMessage(text, role) {
 
   messagesEl.appendChild(bubble);
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// Adds a red-edged bubble for errors. textContent keeps it safe.
+function addError(text) {
+  const bubble = document.createElement("div");
+  bubble.className = "message assistant error";
+  bubble.textContent = text;
+  messagesEl.appendChild(bubble);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// Shows the three bouncing dots and returns the element so we can remove it later
+function showTyping() {
+  const bubble = document.createElement("div");
+  bubble.className = "message assistant typing";
+  bubble.setAttribute("role", "status");
+  bubble.setAttribute("aria-label", "Study Buddy is thinking");
+  bubble.innerHTML = "<span></span><span></span><span></span>";
+  messagesEl.appendChild(bubble);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return bubble;
+}
+
+// Locks or unlocks the Send button
+function setLoading(loading) {
+  isLoading = loading;
+  sendBtn.disabled = loading;
 }
 
 // Makes the text box grow while you type (up to the max height set in CSS)
@@ -83,16 +112,23 @@ inputEl.addEventListener("input", autoGrow);
 
 // Sends the message, the earlier conversation and the mode to our server, returns the reply text
 async function askServer(message) {
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history, mode: currentMode }),
-  });
+  let response;
+  try {
+    response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history, mode: currentMode }),
+    });
+  } catch (networkError) {
+    // The server is off or there is no internet
+    throw new Error("I can't reach the server. Check your connection and try again.");
+  }
 
-  const data = await response.json();
+  // If the reply isn't JSON (for example an error page from the host), use an empty object
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || "Something went wrong.");
+    throw new Error(data.error || "Something went wrong. Please try again.");
   }
   return data.reply;
 }
@@ -100,23 +136,31 @@ async function askServer(message) {
 formEl.addEventListener("submit", async (event) => {
   event.preventDefault(); // stop the page from reloading
 
+  if (isLoading) return; // already waiting for an answer
+
   const text = inputEl.value.trim();
   if (text === "") return; // ignore empty messages
 
   addMessage(text, "user");
   inputEl.value = "";
   autoGrow(); // shrink the box back to one line
-  inputEl.focus();
+  setLoading(true);
+  const typingBubble = showTyping();
 
   try {
     const reply = await askServer(text);
+    typingBubble.remove();
     addMessage(reply, "assistant");
 
     // Remember this exchange only after it worked
     history.push({ role: "user", text });
     history.push({ role: "model", text: reply });
   } catch (error) {
-    addMessage("Sorry, I couldn't reach the server. Please try again.", "assistant");
+    typingBubble.remove();
+    addError(error.message);
     console.error(error);
+  } finally {
+    setLoading(false);
+    inputEl.focus();
   }
 });
