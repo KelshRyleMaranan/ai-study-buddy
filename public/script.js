@@ -2,6 +2,9 @@ const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chat-form");
 const inputEl = document.getElementById("message-input");
 
+// The conversation so far. Each item looks like { role: "user" or "model", text: "..." }
+const history = [];
+
 // Adds a message bubble to the chat and scrolls to the bottom
 function addMessage(text, role) {
   const bubble = document.createElement("div");
@@ -11,12 +14,12 @@ function addMessage(text, role) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// Sends the message to our server and returns the reply text
+// Sends the message and the earlier conversation to our server, returns the reply text
 async function askServer(message) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, history }),
   });
 
   const data = await response.json();
@@ -40,6 +43,10 @@ formEl.addEventListener("submit", async (event) => {
   try {
     const reply = await askServer(text);
     addMessage(reply, "assistant");
+
+    // Remember this exchange only after it worked
+    history.push({ role: "user", text });
+    history.push({ role: "model", text: reply });
   } catch (error) {
     addMessage("Sorry, I couldn't reach the server. Please try again.", "assistant");
     console.error(error);
