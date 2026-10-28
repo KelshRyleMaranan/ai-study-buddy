@@ -4,7 +4,9 @@ A mobile-friendly AI study assistant. Ask a question, get a clear answer, or swi
 
 The page talks to a small **Node.js + Express** server, and the server talks to the **Google Gemini API**. The API key lives only on the server, so it never appears in frontend code.
 
-**Live demo:** coming soon
+**Live demo:** [https://ai-study-buddy-50f4.onrender.com](https://ai-study-buddy-50f4.onrender.com)
+
+> The demo runs on a free host that sleeps when idle, so the first load can take up to a minute. It also has a daily message cap to protect the free AI quota.
 
 ![AI Study Buddy screenshot](imgs/screenshot.png)
 
@@ -24,6 +26,7 @@ The page talks to a small **Node.js + Express** server, and the server talks to 
 - **Backend:** Node.js and Express
 - **AI:** Google Gemini API (`@google/genai`)
 - **Extras:** `express-rate-limit`, `dotenv`, `marked`, `DOMPurify`
+- **Hosting:** Render (free tier)
 
 ## How it works
 
@@ -66,6 +69,10 @@ You need [Node.js](https://nodejs.org) 18 or newer and a free Gemini API key fro
 | `GEMINI_API_KEY` | Yes | Your key from Google AI Studio |
 | `GEMINI_MODEL` | No | Gemini model to use (default: `gemini-3-flash-preview`) |
 | `DAILY_LIMIT` | No | Total chats allowed per day for the whole app (default: `200`) |
+
+## Deployment
+
+The app is deployed as a Node web service on Render. The build command is `npm install`, the start command is `npm start`, and the environment variables above are set in the Render dashboard, never in the code.
 
 ## Project structure
 
