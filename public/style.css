@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark; /* makes scrollbars and form controls match the theme */
   --bg: #fcf7f4;
   --card: #ffffff;
   --text: #1a1a1f;
@@ -84,6 +85,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .message {
@@ -106,6 +109,69 @@ body {
   color: var(--on-accent);
   font-weight: 500;
   border-bottom-right-radius: 4px;
+}
+
+/* Formatting inside the buddy's replies (from Markdown) */
+.message.assistant > :first-child {
+  margin-top: 0;
+}
+
+.message.assistant > :last-child {
+  margin-bottom: 0;
+}
+
+.message.assistant p {
+  margin: 0 0 10px;
+}
+
+.message.assistant ul,
+.message.assistant ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.message.assistant li {
+  margin-bottom: 4px;
+}
+
+.message.assistant h1,
+.message.assistant h2,
+.message.assistant h3,
+.message.assistant h4 {
+  margin: 12px 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.message.assistant strong {
+  font-weight: 600;
+}
+
+.message.assistant a {
+  color: var(--accent);
+}
+
+.message.assistant code {
+  padding: 2px 6px;
+  font-size: 0.85em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.message.assistant pre {
+  margin: 0 0 10px;
+  padding: 12px;
+  overflow-x: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.message.assistant pre code {
+  padding: 0;
+  background: none;
+  border: none;
 }
 
 .input-row {
