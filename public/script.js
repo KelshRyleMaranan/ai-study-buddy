@@ -11,12 +11,23 @@ function addMessage(text, role) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// Temporary fake reply. Replaced by the server in commit 4.
-function getFakeReply(question) {
-  return `You asked: "${question}". I'm not connected to the AI yet, but soon I'll give you a real answer!`;
+// Sends the message to our server and returns the reply text
+async function askServer(message) {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Something went wrong.");
+  }
+  return data.reply;
 }
 
-formEl.addEventListener("submit", (event) => {
+formEl.addEventListener("submit", async (event) => {
   event.preventDefault(); // stop the page from reloading
 
   const text = inputEl.value.trim();
@@ -26,8 +37,11 @@ formEl.addEventListener("submit", (event) => {
   inputEl.value = "";
   inputEl.focus();
 
-  // Wait a moment so it feels like the buddy is "thinking"
-  setTimeout(() => {
-    addMessage(getFakeReply(text), "assistant");
-  }, 600);
+  try {
+    const reply = await askServer(text);
+    addMessage(reply, "assistant");
+  } catch (error) {
+    addMessage("Sorry, I couldn't reach the server. Please try again.", "assistant");
+    console.error(error);
+  }
 });
