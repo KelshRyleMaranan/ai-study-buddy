@@ -28,13 +28,21 @@
         </div>
       </div>
 
+      <div class="modes" id="modes" role="group" aria-label="Study mode">
+        <button type="button" class="mode-btn active" data-mode="tutor" aria-pressed="true">Ask</button>
+        <button type="button" class="mode-btn" data-mode="explain" aria-pressed="false">Explain simply</button>
+        <button type="button" class="mode-btn" data-mode="quiz" aria-pressed="false">Quiz me</button>
+        <button type="button" class="mode-btn" data-mode="summarize" aria-pressed="false">Summarize</button>
+      </div>
+
       <form class="input-row" id="chat-form">
-        <input
-          type="text"
+        <textarea
           id="message-input"
-          placeholder="Type your question..."
+          rows="1"
+          maxlength="4000"
+          placeholder="Ask me anything you're studying..."
           autocomplete="off"
-        />
+        ></textarea>
         <button type="submit" id="send-btn">Send</button>
       </form>
     </section>

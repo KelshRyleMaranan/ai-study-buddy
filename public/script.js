@@ -1,9 +1,19 @@
 const messagesEl = document.getElementById("messages");
 const formEl = document.getElementById("chat-form");
 const inputEl = document.getElementById("message-input");
+const modesEl = document.getElementById("modes");
 
 // The conversation so far. Each item looks like { role: "user" or "model", text: "..." }
 const history = [];
+
+// The study modes. The "id" is sent to the server, which has the matching instructions.
+const MODES = {
+  tutor: "Ask me anything you're studying...",
+  explain: "What should I explain in simple words?",
+  quiz: "Type a topic you want to be quizzed on...",
+  summarize: "Paste the text you want summarized...",
+};
+let currentMode = "tutor";
 
 // Turns the AI's Markdown into safe HTML.
 // If the libraries failed to load (for example, no internet), show plain text instead.
@@ -38,12 +48,45 @@ function addMessage(text, role) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// Sends the message and the earlier conversation to our server, returns the reply text
+// Makes the text box grow while you type (up to the max height set in CSS)
+function autoGrow() {
+  inputEl.style.height = "auto";
+  inputEl.style.height = `${inputEl.scrollHeight}px`;
+}
+
+// Switches the study mode when a mode button is clicked
+modesEl.addEventListener("click", (event) => {
+  const button = event.target.closest(".mode-btn");
+  if (!button) return;
+
+  currentMode = button.dataset.mode;
+
+  modesEl.querySelectorAll(".mode-btn").forEach((btn) => {
+    const isActive = btn === button;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-pressed", String(isActive));
+  });
+
+  inputEl.placeholder = MODES[currentMode];
+  inputEl.focus();
+});
+
+// Enter sends the message. Shift + Enter adds a new line.
+inputEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    formEl.requestSubmit();
+  }
+});
+
+inputEl.addEventListener("input", autoGrow);
+
+// Sends the message, the earlier conversation and the mode to our server, returns the reply text
 async function askServer(message) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, mode: currentMode }),
   });
 
   const data = await response.json();
@@ -62,6 +105,7 @@ formEl.addEventListener("submit", async (event) => {
 
   addMessage(text, "user");
   inputEl.value = "";
+  autoGrow(); // shrink the box back to one line
   inputEl.focus();
 
   try {

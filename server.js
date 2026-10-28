@@ -16,6 +16,33 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 
 const MAX_HISTORY = 20; // only remember the last 20 messages to save quota
+const MAX_MESSAGE_LENGTH = 4000;
+
+// Who the buddy is. This is sent with every request.
+const BASE_PROMPT =
+  "You are AI Study Buddy, a friendly and patient tutor for students. " +
+  "Keep answers clear and fairly short, because many users are on phones. " +
+  "Use Markdown: short paragraphs, bullet points, and code blocks for code. " +
+  "If you are not sure about something, say so instead of guessing. " +
+  "Stay on study and learning topics, and gently steer off-topic requests back to studying.";
+
+// Extra instructions for each study mode
+const MODE_PROMPTS = {
+  tutor:
+    "Mode: Ask. Answer the student's question clearly, then offer one short follow-up they could try.",
+  explain:
+    "Mode: Explain simply. Explain the topic like the student is 12 years old. " +
+    "Use plain words, one everyday analogy, and a tiny example. Avoid jargon, or explain it right away.",
+  quiz:
+    "Mode: Quiz me. Quiz the student on the topic they give you. " +
+    "Ask ONE question at a time and wait for their answer. " +
+    "After they answer, say if it was right, explain briefly, then ask the next question. " +
+    "Start easy and get slightly harder. Never give the answer before they try.",
+  summarize:
+    "Mode: Summarize. Summarize the text the student pastes. " +
+    "Give a one-sentence overview, then 3 to 6 bullet points of the key ideas, " +
+    "then a short list of key terms. Do not add facts that are not in the text.",
+};
 
 // Lets the server read JSON sent from the browser
 app.use(express.json());
@@ -50,8 +77,13 @@ function cleanHistory(history) {
   return cleaned;
 }
 
-// Asks Gemini for an answer, using the earlier messages as memory
-async function getAIReply(message, history) {
+// Only allow modes we know. Anything else falls back to "tutor".
+function cleanMode(mode) {
+  return Object.prototype.hasOwnProperty.call(MODE_PROMPTS, mode) ? mode : "tutor";
+}
+
+// Asks Gemini for an answer, using earlier messages as memory and the mode as instructions
+async function getAIReply(message, history, mode) {
   const contents = [
     ...history.map((item) => ({
       role: item.role,
@@ -63,24 +95,29 @@ async function getAIReply(message, history) {
   const response = await ai.models.generateContent({
     model: MODEL,
     contents,
+    config: {
+      systemInstruction: `${BASE_PROMPT}\n\n${MODE_PROMPTS[mode]}`,
+    },
   });
   return response.text;
 }
 
 // The chat route: the browser sends a message, the server sends back a reply
 app.post("/api/chat", async (req, res) => {
-  const { message, history } = req.body;
+  const { message, history, mode } = req.body;
 
   // Check the message before using it
   if (typeof message !== "string" || message.trim() === "") {
     return res.status(400).json({ error: "Please send a message." });
   }
-  if (message.length > 2000) {
-    return res.status(400).json({ error: "Message is too long (max 2000 characters)." });
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return res
+      .status(400)
+      .json({ error: `Message is too long (max ${MAX_MESSAGE_LENGTH} characters).` });
   }
 
   try {
-    const reply = await getAIReply(message.trim(), cleanHistory(history));
+    const reply = await getAIReply(message.trim(), cleanHistory(history), cleanMode(mode));
     if (!reply) {
       return res.status(502).json({ error: "The AI sent an empty answer. Try again." });
     }
